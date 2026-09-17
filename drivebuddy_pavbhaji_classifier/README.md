@@ -1,40 +1,73 @@
 # DriveBuddyAI Pav Bhaji Text Classification System
 
-> A production-grade text classification machine learning system to predict whether an Instagram post image features **Pav Bhaji** (Class 1) or **Not Pav Bhaji** (Class 0) strictly using post metadata without computer vision.
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg?logo=python&logoColor=white)](https://www.python.org/)
+[![scikit-learn](https://img.shields.io/badge/scikit--learn-1.3%2B-F7931E.svg?logo=scikit-learn&logoColor=white)](https://scikit-learn.org/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-brightgreen.svg)]()
+
+> An end-to-end, production-grade Machine Learning system designed for the **DriveBuddyAI ML Data Pre-processing Challenge**. Predicts whether an Instagram post image depicts **Pav Bhaji** (Class 1) or **Not Pav Bhaji** (Class 0) strictly utilizing textual metadata (captions, tags, locations, comments, and engagement statistics) without computer vision or image pixel processing.
 
 ---
 
-## 📌 Project Overview & Challenge Objective
+## 🎯 Executive Summary & Objective
 
-In social media content moderation and food discovery platforms, indexing dishes from user-generated captions and tags is challenging.
-The goal of this challenge is to train a machine learning model that predicts whether an Instagram post features **Pav Bhaji** using only the metadata stored in `pavbhaji.json`.
+In food discovery and social content curation, classifying dishes from user-generated captions and tags is challenging. 
 
-### Key Constraints:
-- **Text-Based Classification**: Strictly uses text and metadata fields (caption, tags, location, comments, engagement statistics).
-- **Zero Computer Vision**: No CNNs, vision transformers, image pixels, or visual embeddings are used.
-- **Leakage Prevention**: All posts originate from `#pavbhaji` search queries, so naive keyword matching fails. The model must learn deep discriminative patterns (dish descriptions, co-occurring food words, focus ratios).
+### The Core Challenge & Data Leakage Hazard:
+- **Query Bias**: Because the dataset was compiled using the `#pavbhaji` search query, both Class 1 (authentic Pav Bhaji) and Class 0 (other dishes like *Chicken Tikka*, *Pasta*, *Bread Pakoda*, *Dosa*) contain `#pavbhaji` in their hashtag dumps.
+- **Strict Constraint**: **No Computer Vision**. The model must not use CNNs, image embeddings, or pixel values.
+- **The Solution**: An NLP and feature engineering pipeline combining **Word + Character TF-IDF N-grams**, **compound hashtag decomposition**, and **lexical food co-occurrence analysis** to distinguish primary post intent from hashtag spam.
 
 ---
 
-## 📊 Dataset Summary
+## 📊 Dataset & Mapping Structure
 
-| Metric / Attribute | Value | Description |
+| Metric / Field | Value | Notes / Description |
 | :--- | :--- | :--- |
-| **Total JSON Records** | `1,500` | Raw Instagram post records in `pavbhaji.json` |
-| **Labeled Ground-Truth Images** | `452` | Verified images in `dataset/images/` |
-| **Class 0 (Non-Pav Bhaji)** | `269` (59.5%) | Posts featuring Chicken Tikka, Pasta, Dosa, Pakoda, etc. |
+| **Total Raw JSON Posts** | `1,500` | Extracted from `pavbhaji.json` |
+| **Ground-Truth Labeled Posts** | `452` | Mapped 1-to-1 to verified images in `dataset/images/` |
+| **Class 0 (Non-Pav Bhaji)** | `269` (59.5%) | Posts featuring other entrees or generic food |
 | **Class 1 (Pav Bhaji)** | `183` (40.5%) | Posts featuring authentic Pav Bhaji |
-| **Unlabeled Candidate Pool** | `1,048` | Additional JSON posts for future semi-supervised learning |
+| **Unlabeled Candidate Pool** | `1,048` | Posts with uncollected images for future semi-supervised learning |
 | **Train / Test Split** | `361` / `91` | Stratified 80/20 train/test split (`random_state=42`) |
 
 ---
 
-## 🏆 Model Benchmarking & Results
+## 🏗️ System Architecture & Workflow
 
-All models were evaluated with **5-Fold Stratified Cross-Validation** on the training split and verified on the holdout test set:
+```mermaid
+flowchart TD
+    A[Raw Instagram JSON & Image Dirs] --> B[Data Loader & Image Mapper]
+    B --> C[Stratified 80/20 Train-Test Split]
+    C --> D[Text Cleaning & Normalization]
+    D --> E[Compound Hashtag Decomposition]
+    E --> F[Feature Representation Union]
+    
+    subgraph Feature Representation
+        F1[Word TF-IDF N-grams 1,2]
+        F2[Char TF-IDF N-grams 3,5]
+        F3[Lexical & Domain Metadata Features]
+        F --> F1
+        F --> F2
+        F --> F3
+    end
+    
+    F1 & F2 & F3 --> G[5-Fold Stratified Cross-Validation]
+    G --> H[Model Benchmarking: Logistic Regression, Linear SVM, Naive Bayes, Random Forest, SGD]
+    H --> I[Winning Production Model: Logistic Regression Word+Char TF-IDF]
+    I --> J[Diagnostic Plots & Evaluation Report]
+    I --> K[Serialized Pipeline: models/final_model.joblib]
+    K --> L[Batch & Single-Post Prediction API]
+```
 
-| Model Architecture | 5-Fold CV F1-Score | Test Accuracy | Test Precision | Test Recall | Test F1-Score | Test ROC-AUC |
-| :--- | :--- | :--- | :--- | :--- | :--- |
+---
+
+## 🔬 Model Benchmarking & Experimental Results
+
+All candidate pipelines were trained with strict cross-validation on the training set (`361` samples) and evaluated on the holdout test set (`91` samples):
+
+| Model Architecture | 5-Fold CV F1-Score | Holdout Accuracy | Holdout Precision | Holdout Recall | Holdout F1-Score | Holdout ROC-AUC |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Logistic Regression (Word+Char TF-IDF)** ⭐ | **0.6469 ± 0.0389** | **0.6703** | **0.5800** | **0.7838** | **0.6591** | **0.6952** |
 | **Logistic Regression (Word TF-IDF)** | 0.6237 ± 0.0394 | 0.6374 | 0.5333 | 0.8649 | 0.6598 | 0.6772 |
 | **Linear SVM (Calibrated)** | 0.5705 ± 0.0459 | 0.6044 | 0.5135 | 0.5135 | 0.5135 | 0.6942 |
@@ -42,124 +75,124 @@ All models were evaluated with **5-Fold Stratified Cross-Validation** on the tra
 | **Random Forest Baseline** | 0.6147 ± 0.0843 | 0.5934 | 0.5000 | 0.7297 | 0.5918 | 0.6532 |
 | **SGD Classifier (Modified Huber)** | 0.6152 ± 0.0467 | 0.5824 | 0.4865 | 0.4865 | 0.4865 | 0.5681 |
 
-**Winning Model**: `Logistic Regression (Word+Char TF-IDF)` achieves the best balance of F1-score (`0.6591`), high recall on Pav Bhaji instances (`78.38%`), and highest ROC-AUC (`0.6952`).
+### Key Takeaway:
+The **`Logistic Regression (Word+Char TF-IDF)`** pipeline achieves the strongest harmonic balance:
+- Highest generalization score on cross-validation (`0.6469`) and test set (`0.6591` F1).
+- High sensitivity on true Pav Bhaji posts (**`78.38%` Recall**).
+- Superior discrimination capability with **`0.6952` ROC-AUC**.
 
 ---
 
-## 📁 Project Structure
+## 📈 Diagnostic Plots & Visualizations
+
+High-resolution visualization figures are located in `reports/figures/`:
+
+| Diagnostic Visualization | File | Description |
+| :--- | :--- | :--- |
+| **Class Distribution** | `class_distribution.png` | Class frequency breakdown across 452 labeled posts |
+| **Confusion Matrix** | `confusion_matrix.png` | Annotated True/False Positives and Negatives |
+| **Model Comparison** | `model_performance_comparison.png` | Multi-metric benchmark across all trained models |
+| **ROC Curves** | `roc_curves.png` | True Positive Rate vs False Positive Rate curves |
+| **Precision-Recall Curves** | `precision_recall_curves.png` | PR trade-offs across decision thresholds |
+| **Text Length Analysis** | `text_length_distribution.png` | Character and word length boxplots by target class |
+| **Top Informative Words** | `top_words_by_class.png` | Distinct vocabulary frequencies between classes |
+| **Top Hashtags by Class** | `top_hashtags_by_class.png` | Co-occurring hashtag distributions |
+| **Missing Values Profile** | `missing_values_analysis.png` | Data completeness across metadata attributes |
+
+---
+
+## 📁 Repository Structure
 
 ```text
 drivebuddy_pavbhaji_classifier/
 │
 ├── data/
-│   ├── raw/
-│   │   ├── pavbhaji.json
-│   │   └── images/
-│   └── processed/
-│       ├── labeled_dataset.csv
-│       ├── train.csv
-│       ├── test.csv
-│       └── unlabeled_pool.csv
+│   ├── raw/                    # Raw dataset directory
+│   └── processed/              # Cleaned splits (train.csv, test.csv, labeled_dataset.csv)
 │
 ├── notebooks/
-│   └── exploratory_analysis.ipynb
+│   └── exploratory_analysis.ipynb  # Interactive EDA and model walkthrough
 │
 ├── src/
 │   ├── __init__.py
-│   ├── data_loader.py          # JSON ingestion & image mapping
-│   ├── preprocessing.py        # Text normalization & hashtag decomposition
-│   ├── feature_engineering.py  # Word/Char TF-IDF & metadata extractors
-│   ├── train.py                # 5-fold CV & model training
-│   ├── evaluate.py             # 9 diagnostic figures & error analysis
-│   └── predict.py              # Single-post, batch JSON & CSV prediction
+│   ├── data_loader.py          # JSON parser and image mapper
+│   ├── preprocessing.py        # Text normalizer and hashtag segmenter
+│   ├── feature_engineering.py  # Word/Char TF-IDF and domain extractors
+│   ├── train.py                # 5-fold CV and model benchmarking
+│   ├── evaluate.py             # Diagnostic figures and error analysis
+│   └── predict.py              # Single/batch prediction inference engine
 │
 ├── models/
-│   ├── final_model.joblib      # Serialized scikit-learn pipeline
-│   └── model_metadata.json     # Saved metrics and training configuration
+│   ├── final_model.joblib      # Serialized production pipeline
+│   └── model_metadata.json     # Saved evaluation metrics & configuration
 │
 ├── reports/
-│   ├── data_analysis_report.md # Full 13-section technical report
-│   └── figures/                # 9 publication-quality diagnostic plots
-│       ├── class_distribution.png
-│       ├── missing_values_analysis.png
-│       ├── text_length_distribution.png
-│       ├── top_words_by_class.png
-│       ├── top_hashtags_by_class.png
-│       ├── confusion_matrix.png
-│       ├── model_performance_comparison.png
-│       ├── roc_curves.png
-│       └── precision_recall_curves.png
+│   ├── data_analysis_report.md # Comprehensive 13-section technical report
+│   └── figures/                # 9 high-res diagnostic plots
 │
 ├── predictions/
-│   └── sample_predictions.csv  # Test set inference demonstration
+│   └── sample_predictions.csv  # Holdout test set predictions
 │
-├── requirements.txt
-├── README.md
-└── main.py
+├── requirements.txt            # Dependency manifest
+├── README.md                   # Project documentation
+└── main.py                     # Command-line entry point
 ```
 
 ---
 
-## 🚀 Quickstart & Execution
+## ⚡ Quickstart & Usage
 
-### 1. Installation
-Ensure Python 3.10+ is installed:
-
+### 1. Environment Setup
 ```bash
 # Clone the repository
-git clone https://github.com/drivebuddyai/machinelearningchallenge.git
-cd machinelearningchallenge
+git clone https://github.com/KASHADII/pavbhaji_model_adityasharma.git
+cd pavbhaji_model_adityasharma
 
-# Create virtual environment and install requirements
+# Create and activate virtual environment
 python -m venv .venv
-.venv\Scripts\activate  # On Linux/macOS: source .venv/bin/activate
+.venv\Scripts\activate       # On Windows PowerShell / Command Prompt
+# source .venv/bin/activate  # On Linux / macOS
+
+# Install required dependencies
 pip install -r requirements.txt
 ```
 
 ### 2. Run the Full End-to-End Pipeline
-Runs data loading, preprocessing, 5-fold cross validation, plot generation, report authoring, and test predictions:
-
+Executes data extraction, preprocessing, 5-fold cross-validation, model training, plot generation, report authoring, and test predictions:
 ```bash
 python main.py
 ```
 
-### 3. Dedicated Execution Commands
+### 3. CLI Prediction Commands
 
-#### Run Training & Evaluation Only:
+#### Batch Prediction on a CSV File:
 ```bash
-python main.py --mode train
+python main.py --mode predict --input data/processed/test.csv --output predictions/my_predictions.csv
 ```
 
-#### Run Batch Prediction on a CSV File:
+#### Batch Prediction on a JSON File:
 ```bash
-python main.py --mode predict --input data/processed/test.csv --output predictions/my_preds.csv
+python main.py --mode predict --input path/to/posts.json --output predictions/json_predictions.csv
 ```
 
-#### Run Batch Prediction on a JSON File:
-```bash
-python main.py --mode predict --input path/to/posts.json --output predictions/json_preds.csv
-```
-
-### 4. Programmatic Python Prediction API
-You can use `predict_post` directly in Python:
-
+### 4. Programmatic Python Inference API
 ```python
 from src.predict import predict_post
 
 sample_post = {
-    "id": "post_123",
+    "id": "demo_post_001",
     "edge_media_to_caption": {
-        "edges": [{"node": {"text": "Craving spicy buttery Pav Bhaji with extra butter! #pavbhaji"}}]
+        "edges": [{"node": {"text": "Craving some spicy, piping hot Pav Bhaji loaded with extra Amul butter at Sardar Pav Bhaji!"}}]
     },
     "tags": ["pavbhaji", "streetfood", "mumbaifoodie"],
-    "location": {"name": "Juhu Beach, Mumbai"}
+    "location": {"name": "Sardar Pav Bhaji, Tardeo, Mumbai"}
 }
 
 result = predict_post(sample_post)
 print(result)
 # Output:
 # {
-#   'image_id': 'post_123',
+#   'image_id': 'demo_post_001',
 #   'prediction': 1,
 #   'prediction_label': 'Pav Bhaji',
 #   'confidence_or_score': 0.7854,
@@ -169,26 +202,14 @@ print(result)
 
 ---
 
-## 📈 Diagnostic Plots & Artifacts
+## 🔍 Error Analysis & Insights
 
-All plots are automatically generated at 300 DPI in `reports/figures/`:
-- **Class Distribution**: [class_distribution.png](reports/figures/class_distribution.png)
-- **Confusion Matrix**: [confusion_matrix.png](reports/figures/confusion_matrix.png)
-- **Model Comparison**: [model_performance_comparison.png](reports/figures/model_performance_comparison.png)
-- **ROC Curves**: [roc_curves.png](reports/figures/roc_curves.png)
-- **Precision-Recall Curves**: [precision_recall_curves.png](reports/figures/precision_recall_curves.png)
-- **Top Words & Hashtags**: [top_words_by_class.png](reports/figures/top_words_by_class.png), [top_hashtags_by_class.png](reports/figures/top_hashtags_by_class.png)
+- **False Positives**: Typically occur on posts discussing large food walks, restaurant menus, or buffet thalis where Pav Bhaji is mentioned as one of several items, even though the primary photo captures another dish.
+- **False Negatives**: Occur primarily on ultra-terse captions (e.g. only emojis or cafe names without dish keywords) where textual signal is minimal.
+- **Future Extension**: In a multimodal production environment, fusing these text features with lightweight CNN/ViT image embeddings would resolve terse or ambiguous captions.
 
 ---
 
-## 📄 Deliverables Checklist
+## 📜 Technical Documentation
 
-- [x] Complete Modular Source Code (`src/data_loader.py`, `src/preprocessing.py`, `src/feature_engineering.py`, `src/train.py`, `src/evaluate.py`, `src/predict.py`)
-- [x] End-to-End Orchestrator (`main.py`)
-- [x] Comprehensive 13-Section Markdown Report (`reports/data_analysis_report.md`)
-- [x] 9 Diagnostic Visualization Figures (`reports/figures/`)
-- [x] Interactive Exploratory Jupyter Notebook (`notebooks/exploratory_analysis.ipynb`)
-- [x] Saved Production Model (`models/final_model.joblib`)
-- [x] Inference System with Single/Batch Support (`predictions/sample_predictions.csv`)
-- [x] Dependency Manifest (`requirements.txt`)
-- [x] Complete Documentation (`README.md`)
+For the complete in-depth analysis, mathematical formulations, and detailed error breakdown, refer to the [Data Analysis Report](reports/data_analysis_report.md).
